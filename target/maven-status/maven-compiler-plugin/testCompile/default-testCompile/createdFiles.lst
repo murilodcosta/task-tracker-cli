@@ -1,1 +1,4 @@
 com\murilodcosta\tasktrackercli\model\TaskTest.class
+com\murilodcosta\tasktrackercli\manager\TaskManagerTest.class
+com\murilodcosta\tasktrackercli\model\StatusTest.class
+com\murilodcosta\tasktrackercli\MainTest.class

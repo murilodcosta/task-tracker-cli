@@ -85,12 +85,24 @@ class TaskTest {
         String expected = "{" +
                 "\"id\":\"10\", " +
                 "\"description\":\"JSON test\", " +
-                "\"status\":\"DONE\", " +
+                "\"status\":\"done\", " +
                 "\"createdAt\":\"2026-03-24T10:00:00\", " +
                 "\"updatedAt\":\"2026-03-24T12:15:30\"" +
                 "}";
 
         assertEquals(expected, task.toJson());
+    }
+
+    @Test
+    @DisplayName("toJson/fromJson should preserve escaped description content")
+    void jsonShouldHandleEscapedDescription() {
+        Task task = new Task("Texto com \"aspas\" e barra \\\\.");
+        String json = task.toJson();
+
+        Task restored = Task.fromJson(json);
+
+        assertTrue(json.contains("\\\"aspas\\\""));
+        assertTrue(restored.toJson().contains("Texto com \\\"aspas\\\" e barra \\\\\\\\."));
     }
 
     @Test

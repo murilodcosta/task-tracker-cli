@@ -32,22 +32,68 @@ public class TaskManager {
                 return new ArrayList<>();
             }
 
-            String[] taskList = jsonContent.replace("[", "")
-                    .replace("]", "")
-                    .split("},");
-            for (String taskJson : taskList){
-                if (taskJson.isBlank()) {
-                    continue;
+            for (String taskJson : splitJsonArrayObjects(jsonContent)) {
+                try {
+                    storedTasks.add(Task.fromJson(taskJson));
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Skipping invalid task entry: " + e.getMessage());
                 }
-                if (!taskJson.endsWith("}")){
-                    taskJson = taskJson + "}";
-                }
-                storedTasks.add(Task.fromJson(taskJson));
             }
         } catch (IOException e){
             e.printStackTrace();
         }
         return storedTasks;
+    }
+
+    private List<String> splitJsonArrayObjects(String jsonArray) {
+        String trimmed = jsonArray.trim();
+        if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
+            throw new IllegalArgumentException("Invalid JSON array in tasks file.");
+        }
+
+        List<String> objects = new ArrayList<>();
+        boolean inString = false;
+        boolean escaped = false;
+        int depth = 0;
+        int objectStart = -1;
+
+        for (int i = 0; i < trimmed.length(); i++) {
+            char current = trimmed.charAt(i);
+
+            if (!escaped && current == '\\') {
+                escaped = true;
+                continue;
+            }
+
+            if (!escaped && current == '"') {
+                inString = !inString;
+            }
+
+            if (!inString) {
+                if (current == '{') {
+                    if (depth == 0) {
+                        objectStart = i;
+                    }
+                    depth++;
+                } else if (current == '}') {
+                    depth--;
+                    if (depth == 0 && objectStart >= 0) {
+                        objects.add(trimmed.substring(objectStart, i + 1));
+                        objectStart = -1;
+                    }
+                }
+            }
+
+            if (escaped) {
+                escaped = false;
+            }
+        }
+
+        if (depth != 0 || inString) {
+            throw new IllegalArgumentException("Invalid JSON array structure in tasks file.");
+        }
+
+        return objects;
     }
 
     public void saveTasks(){
@@ -71,33 +117,38 @@ public class TaskManager {
     public void addTask(String description){
         Task newTask = new Task(description);
         tasks.add(newTask);
+        saveTasks();
         System.out.println("Task added successfully (ID: " + newTask.getId() + ")");
     }
 
     public void updateTask(String id, String newDescription){
         Task task = findTask(id).orElseThrow(() -> new IllegalArgumentException("Task with ID " + id + " not found!"));
         task.updateDescription(newDescription);
+        saveTasks();
     }
 
     public void deleteTask(String id){
         Task task = findTask(id).orElseThrow(() -> new IllegalArgumentException("Task with ID " + id + " not found!"));
         tasks.remove(task);
+        saveTasks();
     }
 
     public void markInProgress(String id){
         Task task = findTask(id).orElseThrow(() -> new IllegalArgumentException("Task with ID " + id + " not found!"));
         task.markInProgress();
+        saveTasks();
     }
 
     public void markDone(String id){
         Task task = findTask(id).orElseThrow(() -> new IllegalArgumentException("Task with ID " + id + " not found!"));
         task.markDone();
+        saveTasks();
     }
 
     public void listTasks(String type){
         String normalizedType = type == null ? "all" : type.strip().toLowerCase(Locale.ROOT);
         for (Task task : tasks){
-            String statusKey = task.getStatus().name().toLowerCase(Locale.ROOT).replace("_", "-");
+            String statusKey = task.getStatus().toStorageValue();
             if (normalizedType.equals("all") || statusKey.equals(normalizedType)){
                 System.out.println(task);
             }
@@ -105,7 +156,15 @@ public class TaskManager {
     }
 
     public Optional<Task> findTask(String id) {
-        return tasks.stream().filter((task) -> task.getId() == Integer.parseInt(id)).findFirst();
+        int parsedId = parseId(id);
+        return tasks.stream().filter((task) -> task.getId() == parsedId).findFirst();
     }
 
+    private int parseId(String id) {
+        try {
+            return Integer.parseInt(id);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid ID: " + id + ". ID must be a number.");
+        }
+    }
 }

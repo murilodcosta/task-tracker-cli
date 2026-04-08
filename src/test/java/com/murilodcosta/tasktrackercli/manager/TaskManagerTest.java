@@ -117,5 +117,31 @@ class TaskManagerTest {
                 () -> assertThrows(IllegalArgumentException.class, () -> manager.markDone("999"))
         );
     }
-}
 
+    @Test
+    @DisplayName("constructor should skip invalid entries and keep valid ones")
+    void loadTasksShouldSkipInvalidEntries() throws IOException {
+        String fileContent = "[\n" +
+                "{\"id\":\"1\", \"description\":\"ok\", \"status\":\"todo\", \"createdAt\":\"2026-03-24T10:00:00\", \"updatedAt\":\"2026-03-24T10:00:00\"},\n" +
+                "{\"id\":\"2\", \"description\":\"broken\", \"status\":\"doing\", \"createdAt\":\"2026-03-24T10:00:00\", \"updatedAt\":\"2026-03-24T10:00:00\"}\n" +
+                "]";
+        Files.writeString(TASKS_FILE, fileContent);
+
+        TaskManager manager = new TaskManager();
+
+        assertTrue(manager.findTask("1").isPresent());
+        assertTrue(manager.findTask("2").isEmpty());
+    }
+
+    @Test
+    @DisplayName("save/load should preserve description with braces and quotes")
+    void saveAndLoadShouldHandleSpecialCharactersInDescription() {
+        TaskManager manager = new TaskManager();
+        manager.addTask("Texto com } e \"aspas\"");
+
+        TaskManager loadedManager = new TaskManager();
+
+        Task loadedTask = loadedManager.findTask("1").orElseThrow();
+        assertTrue(loadedTask.toJson().contains("Texto com } e \\\"aspas\\\""));
+    }
+}
