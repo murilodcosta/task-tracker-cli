@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class TaskManager {
@@ -26,17 +27,22 @@ public class TaskManager {
         }
 
         try {
-            String jsonContent = Files.readString(FILE_PATH);
+            String jsonContent = Files.readString(FILE_PATH).trim();
+            if (jsonContent.isEmpty() || jsonContent.equals("[]")) {
+                return new ArrayList<>();
+            }
+
             String[] taskList = jsonContent.replace("[", "")
                     .replace("]", "")
                     .split("},");
             for (String taskJson : taskList){
+                if (taskJson.isBlank()) {
+                    continue;
+                }
                 if (!taskJson.endsWith("}")){
                     taskJson = taskJson + "}";
-                    storedTasks.add(Task.fromJson(taskJson));
-                } else {
-                    storedTasks.add(Task.fromJson(taskJson));
                 }
+                storedTasks.add(Task.fromJson(taskJson));
             }
         } catch (IOException e){
             e.printStackTrace();
@@ -68,9 +74,9 @@ public class TaskManager {
         System.out.println("Task added successfully (ID: " + newTask.getId() + ")");
     }
 
-    public void updateTask(String id, String new_description){
+    public void updateTask(String id, String newDescription){
         Task task = findTask(id).orElseThrow(() -> new IllegalArgumentException("Task with ID " + id + " not found!"));
-        task.updateDescription(new_description);
+        task.updateDescription(newDescription);
     }
 
     public void deleteTask(String id){
@@ -89,10 +95,11 @@ public class TaskManager {
     }
 
     public void listTasks(String type){
+        String normalizedType = type == null ? "all" : type.strip().toLowerCase(Locale.ROOT);
         for (Task task : tasks){
-            String status = task.getStatus().toString().strip();
-            if (type.equals("All") || status.equals(type)){
-                System.out.println(task.toString());
+            String statusKey = task.getStatus().name().toLowerCase(Locale.ROOT).replace("_", "-");
+            if (normalizedType.equals("all") || statusKey.equals(normalizedType)){
+                System.out.println(task);
             }
         }
     }
@@ -100,6 +107,5 @@ public class TaskManager {
     public Optional<Task> findTask(String id) {
         return tasks.stream().filter((task) -> task.getId() == Integer.parseInt(id)).findFirst();
     }
-
 
 }

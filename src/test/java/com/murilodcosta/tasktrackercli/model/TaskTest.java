@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TaskTest {
 
     @BeforeEach
-    void resetLastId() throws NoSuchFieldException, IllegalAccessException {
+    void resetLastId() throws Exception {
         Field lastIdField = Task.class.getDeclaredField("lastId");
         lastIdField.setAccessible(true);
         lastIdField.set(null, 0);
@@ -20,54 +20,46 @@ class TaskTest {
 
     @Test
     @DisplayName("Task(String) should set defaults and generate id")
-    void constructorWithDescriptionShouldSetDefaults() {
+    void constructorWithDescriptionShouldSetDefaults() throws Exception {
         Task task = new Task("Write tests");
 
+        String description = (String) getField(task, "description");
+        LocalDateTime createdAt = (LocalDateTime) getField(task, "createdAt");
+        LocalDateTime updatedAt = (LocalDateTime) getField(task, "updatedAt");
+
         assertEquals(1, task.getId());
-        assertEquals("Write tests", task.getDescription());
+        assertEquals("Write tests", description);
         assertEquals(Status.TODO, task.getStatus());
-        assertNotNull(task.getCreatedAt());
-        assertNotNull(task.getUpdatedAt());
-        assertFalse(task.getUpdatedAt().isBefore(task.getCreatedAt()));
+        assertNotNull(createdAt);
+        assertNotNull(updatedAt);
+        assertFalse(updatedAt.isBefore(createdAt));
     }
 
     @Test
-    @DisplayName("Task(full args) should keep provided values")
-    void fullConstructorShouldKeepProvidedValues() {
-        LocalDateTime createdAt = LocalDateTime.of(2026, 3, 24, 10, 0, 0);
-        LocalDateTime updatedAt = LocalDateTime.of(2026, 3, 24, 11, 30, 0);
-
-        Task task = new Task(42, "Imported task", Status.IN_PROGRESS, createdAt, updatedAt);
-
-        assertEquals(42, task.getId());
-        assertEquals("Imported task", task.getDescription());
-        assertEquals(Status.IN_PROGRESS, task.getStatus());
-        assertEquals(createdAt, task.getCreatedAt());
-        assertEquals(updatedAt, task.getUpdatedAt());
-    }
-
-    @Test
-    @DisplayName("setDescription should change description and refresh updatedAt")
-    void setDescriptionShouldUpdateUpdatedAt() {
+    @DisplayName("updateDescription should change description and refresh updatedAt")
+    void updateDescriptionShouldUpdateFields() throws Exception {
         Task task = new Task("Old description");
-        LocalDateTime oldUpdatedAt = task.getUpdatedAt();
+        LocalDateTime oldUpdatedAt = (LocalDateTime) getField(task, "updatedAt");
 
-        task.setDescription("New description");
+        task.updateDescription("New description");
 
-        assertEquals("New description", task.getDescription());
-        assertTrue(task.getUpdatedAt().isAfter(oldUpdatedAt) || task.getUpdatedAt().isEqual(oldUpdatedAt));
+        String description = (String) getField(task, "description");
+        LocalDateTime newUpdatedAt = (LocalDateTime) getField(task, "updatedAt");
+
+        assertEquals("New description", description);
+        assertTrue(newUpdatedAt.isAfter(oldUpdatedAt) || newUpdatedAt.isEqual(oldUpdatedAt));
     }
 
     @Test
-    @DisplayName("setStatus should change status and refresh updatedAt")
-    void setStatusShouldUpdateUpdatedAt() {
+    @DisplayName("markInProgress and markDone should update status")
+    void markMethodsShouldUpdateStatus() {
         Task task = new Task("Status task");
-        LocalDateTime oldUpdatedAt = task.getUpdatedAt();
 
-        task.setStatus(Status.DONE);
+        task.markInProgress();
+        assertEquals(Status.IN_PROGRESS, task.getStatus());
 
+        task.markDone();
         assertEquals(Status.DONE, task.getStatus());
-        assertTrue(task.getUpdatedAt().isAfter(oldUpdatedAt) || task.getUpdatedAt().isEqual(oldUpdatedAt));
     }
 
     @Test
@@ -82,20 +74,52 @@ class TaskTest {
 
     @Test
     @DisplayName("toJson should serialize task fields in expected format")
-    void toJsonShouldSerializeInExpectedFormat() {
-        LocalDateTime createdAt = LocalDateTime.of(2026, 3, 24, 10, 0, 0);
-        LocalDateTime updatedAt = LocalDateTime.of(2026, 3, 24, 12, 15, 30);
-        Task task = new Task(10, "JSON test", Status.DONE, createdAt, updatedAt);
+    void toJsonShouldSerializeInExpectedFormat() throws Exception {
+        Task task = new Task("JSON test");
 
-        String expected = "{"
-                + "\"id\":\"10\","
-                + "\"description\":\"JSON test\","
-                + "\"status\":\"Status{value='Done'}\","
-                + "\"createdAt\":\"2026-03-24T10:00:00\","
-                + "\"updatedAt\":\"2026-03-24T12:15:30\""
-                + "}";
+        setField(task, "id", 10);
+        setField(task, "status", Status.DONE);
+        setField(task, "createdAt", LocalDateTime.of(2026, 3, 24, 10, 0, 0));
+        setField(task, "updatedAt", LocalDateTime.of(2026, 3, 24, 12, 15, 30));
+
+        String expected = "{" +
+                "\"id\":\"10\", " +
+                "\"description\":\"JSON test\", " +
+                "\"status\":\"DONE\", " +
+                "\"createdAt\":\"2026-03-24T10:00:00\", " +
+                "\"updatedAt\":\"2026-03-24T12:15:30\"" +
+                "}";
 
         assertEquals(expected, task.toJson());
     }
-}
 
+    @Test
+    @DisplayName("fromJson should create task with parsed values")
+    void fromJsonShouldDeserialize() {
+        String json = "{" +
+                "\"id\":\"7\", " +
+                "\"description\":\"Imported\", " +
+                "\"status\":\"DONE\", " +
+                "\"createdAt\":\"2026-03-24T10:00:00\", " +
+                "\"updatedAt\":\"2026-03-24T12:15:30\"" +
+                "}";
+
+        Task task = Task.fromJson(json);
+
+        assertEquals(7, task.getId());
+        assertEquals(Status.DONE, task.getStatus());
+        assertTrue(task.toJson().contains("\"description\":\"Imported\""));
+    }
+
+    private Object getField(Task task, String fieldName) throws Exception {
+        Field field = Task.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(task);
+    }
+
+    private void setField(Task task, String fieldName, Object value) throws Exception {
+        Field field = Task.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(task, value);
+    }
+}
